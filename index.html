@@ -29,15 +29,13 @@
     </section>
 
     <section>
-        <h2>Select Journal</h2>
-        <select id="journalSelect"></select>
         <label for="targetWord">Target Word:</label>
         <input type="text" id="targetWord" value="crisis">
-        <p>Enter the main word you want to analyze. The graph will highlight relationships with this word.</p>
-        <h2>Generate Target word Ratio Graph</h2>
-        <button class="btn btn-color-1" onclick="generateCrisisRatioGraph()">Generate Graph</button>
-        <p>Choose a journal from the list. This will filter the data specific to the selected journal.</p>
-        <div id="crisisRatioGraph" ></div>
+        <p>Enter the main word you want to analyze.</p>
+        <h2>Generate Target Word Ratio</h2>
+        <p>Find the ratio of the target words to all the words in the texts.</p>
+        <button class="btn btn-color-1" onclick="generateCrisisRatio()">Generate Ratio</button>
+        <div id="overallRatioDisplay"></div>
     </section>
 
     <section>

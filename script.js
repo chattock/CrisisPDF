@@ -1,5 +1,4 @@
 let data = [];
-let journals = [];
 let tokens = [];
 let initialNodes = [];
 let initialEdges = [];
@@ -15,13 +14,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (line.trim()) {
                     const jsonLine = JSON.parse(line);
                     data.push(jsonLine);
-                    if (!journals.includes(jsonLine.isPartOf)) {
-                        journals.push(jsonLine.isPartOf);
-                    }
                 }
             });
-            populateJournalSelect();
-            generateCrisisRatioGraph();
+            generateCrisisRatio();
             generateGraph();
             generateProbabilityGraph();
         })
@@ -38,81 +33,43 @@ document.getElementById('fileInput').addEventListener('change', function(event) 
                 if (line.trim()) {
                     const jsonLine = JSON.parse(line);
                     data.push(jsonLine);
-                    if (!journals.includes(jsonLine.isPartOf)) {
-                        journals.push(jsonLine.isPartOf);
-                    }
                 }
             });
-            populateJournalSelect();
         };
         reader.readAsText(file);
     }
 });
 
-function populateJournalSelect() {
-    const journalSelect = document.getElementById('journalSelect');
-    journalSelect.innerHTML = '';
-    journals.forEach(journal => {
-        const option = document.createElement('option');
-        option.value = journal;
-        option.textContent = journal;
-        journalSelect.appendChild(option);
-    });
-}
-
-function getTokensForSelectedJournal() {
-    const selectedJournal = document.getElementById('journalSelect').value;
-    const journalData = data.filter(item => item.isPartOf === selectedJournal);
-    const fullText = journalData.map(item => item.fullText).join(' ');
+function getTokensForAllData() {
+    const fullText = data.map(item => item.fullText).join(' ');
     return fullText.toLowerCase().split(/\W+/);
 }
 
 function calculateRatio(text, wordCount, targetWord) {
     if (Array.isArray(text) && wordCount > 0) {
-        const targetCount = text.reduce((acc, t) => acc + (t.toLowerCase().match(new RegExp(targetWord.toLowerCase(), 'g')) || []).length, 0);
+        const targetCount = text.reduce(
+            (acc, t) =>
+                acc + (t.toLowerCase().match(new RegExp(targetWord.toLowerCase(), 'g')) || []).length,
+            0
+        );
         return targetCount / wordCount;
     }
     return 0;
 }
 
-function generateCrisisRatioGraph() {
-    const selectedJournal = document.getElementById('journalSelect').value;
+function generateCrisisRatio() {
     const targetWord = document.getElementById('targetWord').value;
-    const journalData = data.filter(item => item.isPartOf === selectedJournal);
+    let totalTargetCount = 0;
+    let totalWordCount = 0;
 
-    journalData.forEach(item => {
-        item.crisis_ratio = calculateRatio(item.fullText, item.wordCount, targetWord);
+    data.forEach(item => {
+        totalTargetCount += (item.fullText.join(' ').toLowerCase().match(new RegExp(targetWord.toLowerCase(), 'g')) || []).length;
+        totalWordCount += item.wordCount;
     });
 
-    const crisisRatioByYear = journalData.reduce((acc, item) => {
-        if (!acc[item.publicationYear]) {
-            acc[item.publicationYear] = { sum: 0, count: 0 };
-        }
-        acc[item.publicationYear].sum += item.crisis_ratio;
-        acc[item.publicationYear].count++;
-        return acc;
-    }, {});
+    const overallRatio = totalTargetCount / totalWordCount;
 
-    const years = Object.keys(crisisRatioByYear).sort();
-    const meanCrisisRatios = years.map(year => crisisRatioByYear[year].sum / crisisRatioByYear[year].count);
-
-    const trace = {
-        x: years,
-        y: meanCrisisRatios,
-        type: 'bar',
-        marker: { color: 'lightcoral' }
-    };
-
-    const layout = {
-        title: `Mean Ratio of "${targetWord}" Per Year for ${selectedJournal}`,
-        xaxis: { title: 'Year' },
-        yaxis: { 
-            title: `Mean Ratio of "${targetWord}"`,
-            tickformat: '.6f'
-        }
-    };
-
-    Plotly.newPlot('crisisRatioGraph', [trace], layout);
+    document.getElementById('overallRatioDisplay').innerText = `Overall Ratio of "${targetWord}": ${overallRatio.toFixed(6)}`;
 }
 
 function getCommonWords() {
@@ -182,7 +139,7 @@ function displayPMI() {
     const targetWord = document.getElementById('targetWord').value;
     const selectedNeighbor = getSelectedNeighbor();
     const contextWindowSize = parseInt(document.getElementById('contextWindowSize').value);
-    const tokens = getTokensForSelectedJournal();
+    const tokens = getTokensForAllData();
 
     const pmi = calculatePMI(targetWord, selectedNeighbor, tokens, contextWindowSize);
 
@@ -199,14 +156,12 @@ function generateGraph() {
     const contextWindowSize = parseInt(document.getElementById('contextWindowSize').value);
     const topWordsCount = parseInt(document.getElementById('topWordsCount').value);
     const neighborsCount = parseInt(document.getElementById('neighborsCount').value);
-    const selectedJournal = document.getElementById('journalSelect').value;
     const commonWords = getCommonWords();
 
     const neighborWeight = parseFloat(document.getElementById('neighborWeight').value);
     const targetProximityStrength = parseFloat(document.getElementById('targetProximityStrength').value);
 
-    const journalData = data.filter(item => item.isPartOf === selectedJournal);
-    const fullText = journalData.map(item => item.fullText).join(' ');
+    const fullText = data.map(item => item.fullText).join(' ');
     tokens = fullText.toLowerCase().split(/\W+/);
 
     tokens = tokens.filter(word => !commonWords.has(word));
@@ -474,7 +429,7 @@ function generateProbabilityGraph() {
     const targetWord = document.getElementById('targetWord').value;
     const selectedNeighbor = getSelectedNeighbor();
     const contextWindowSize = parseInt(document.getElementById('contextWindowSize').value);
-    const tokens = getTokensForSelectedJournal();
+    const tokens = getTokensForAllData();
 
     const totalTokens = tokens.length;
     const positionCounts = Array(contextWindowSize * 2 + 1).fill(0);
@@ -513,19 +468,17 @@ function generateProbabilityGraph() {
 document.getElementById('calculatePMIButton').addEventListener('click', displayPMI);
 document.getElementById('calculateProbabilityGraph').addEventListener('click', generateProbabilityGraph);
 
-function generateOldGraph() {
+function generateGraph() {
     const targetWord = document.getElementById('targetWord').value;
     const contextWindowSize = parseInt(document.getElementById('contextWindowSize').value);
     const topWordsCount = parseInt(document.getElementById('topWordsCount').value);
     const neighborsCount = parseInt(document.getElementById('neighborsCount').value);
-    const selectedJournal = document.getElementById('journalSelect').value;
     const commonWords = getCommonWords();
 
     const neighborWeight = parseFloat(document.getElementById('neighborWeight').value);
     const targetProximityStrength = parseFloat(document.getElementById('targetProximityStrength').value);
 
-    const journalData = data.filter(item => item.isPartOf === selectedJournal);
-    const fullText = journalData.map(item => item.fullText).join(' ');
+    const fullText = data.map(item => item.fullText).join(' ');
     tokens = fullText.toLowerCase().split(/\W+/);
 
     tokens = tokens.filter(word => !commonWords.has(word));
