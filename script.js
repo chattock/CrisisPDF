@@ -4,45 +4,55 @@ let initialNodes = [];
 let initialEdges = [];
 let initialLayout = {};
 
-// Preload the JSONL file
-document.addEventListener("DOMContentLoaded", () => {
-    fetch('part-1.jsonl')
-        .then(response => response.text())
-        .then(text => {
-            const lines = text.split('\n');
-            lines.forEach(line => {
-                if (line.trim()) {
-                    const jsonLine = JSON.parse(line);
-                    data.push(jsonLine);
-                }
-            });
-            generateCrisisRatio();
-            generateGraph();
-            generateProbabilityGraph();
-        })
-        .catch(error => console.error('Error loading JSONL file:', error));
+document.addEventListener("DOMContentLoaded", async () => {
+    const url = 'contributions-choc140104.pdf';
+    const loadingTask = pdfjsLib.getDocument(url);
+    const pdf = await loadingTask.promise;
+
+    for (let i = 0; i < pdf.numPages; i++) {
+        const page = await pdf.getPage(i + 1);
+        const textContent = await page.getTextContent();
+        const textItems = textContent.items.map(item => item.str).join(' ');
+        data.push({ fullText: textItems });
+    }
+
+    console.log("Full Text:", data.map(item => item.fullText).join(' '));
+    console.log("Tokens:", getTokensForAllData());
+    
+    generateCrisisRatio();
+    generateGraph();
+    generateProbabilityGraph();
 });
 
-document.getElementById('fileInput').addEventListener('change', function(event) {
+document.getElementById('fileInput').addEventListener('change', async function(event) {
     const file = event.target.files[0];
     if (file) {
         const reader = new FileReader();
-        reader.onload = function(e) {
-            const lines = e.target.result.split('\n');
-            lines.forEach(line => {
-                if (line.trim()) {
-                    const jsonLine = JSON.parse(line);
-                    data.push(jsonLine);
-                }
-            });
+        reader.onload = async function(e) {
+            const loadingTask = pdfjsLib.getDocument(new Uint8Array(e.target.result));
+            const pdf = await loadingTask.promise;
+
+            for (let i = 0; i < pdf.numPages; i++) {
+                const page = await pdf.getPage(i + 1);
+                const textContent = await page.getTextContent();
+                const textItems = textContent.items.map(item => item.str).join(' ');
+                data.push({ fullText: textItems });
+            }
+
+            console.log("Full Text:", data.map(item => item.fullText).join(' '));
+            console.log("Tokens:", getTokensForAllData());
+
+            generateCrisisRatio();
+            generateGraph();
+            generateProbabilityGraph();
         };
-        reader.readAsText(file);
+        reader.readAsArrayBuffer(file);
     }
 });
 
 function getTokensForAllData() {
     const fullText = data.map(item => item.fullText).join(' ');
-    return fullText.toLowerCase().split(/\W+/);
+    return fullText.toLowerCase().split(/\W+/).filter(Boolean);
 }
 
 function calculateRatio(text, wordCount, targetWord) {
@@ -58,18 +68,20 @@ function calculateRatio(text, wordCount, targetWord) {
 }
 
 function generateCrisisRatio() {
-    const targetWord = document.getElementById('targetWord').value;
+    const targetWord = document.getElementById('targetWord').value.toLowerCase();
     let totalTargetCount = 0;
     let totalWordCount = 0;
 
     data.forEach(item => {
-        totalTargetCount += (item.fullText.join(' ').toLowerCase().match(new RegExp(targetWord.toLowerCase(), 'g')) || []).length;
-        totalWordCount += item.wordCount;
+        const text = item.fullText.toLowerCase();
+        totalTargetCount += (text.match(new RegExp(targetWord, 'g')) || []).length;
+        totalWordCount += text.split(/\W+/).filter(Boolean).length;
     });
 
     const overallRatio = totalTargetCount / totalWordCount;
 
-    document.getElementById('overallRatioDisplay').innerText = `Overall Ratio of "${targetWord}": ${overallRatio.toFixed(6)}`;
+    document.getElementById('overallRatioDisplay').innerText = 
+        `Overall Ratio of "${targetWord}": ${overallRatio.toFixed(6)}`;
 }
 
 function getCommonWords() {
@@ -100,6 +112,13 @@ function populateNeighborSelect(topWords) {
     });
 }
 
+function getSelectedNeighbor() {
+    const neighborSelect = document.getElementById('neighborSelect').value;
+    const neighborInput = document.getElementById('neighborInput').value.trim();
+    
+    return neighborInput || neighborSelect;
+}
+
 function calculatePMI(word1, word2, tokens, contextWindowSize) {
     const totalTokens = tokens.length;
     const freqWord1 = tokens.filter(word => word === word1).length;
@@ -128,17 +147,10 @@ function calculatePMI(word1, word2, tokens, contextWindowSize) {
     return pmi;
 }
 
-function getSelectedNeighbor() {
-    const neighborSelect = document.getElementById('neighborSelect').value;
-    const neighborInput = document.getElementById('neighborInput').value.trim();
-    
-    return neighborInput || neighborSelect;
-}
-
 function displayPMI() {
-    const targetWord = document.getElementById('targetWord').value;
-    const selectedNeighbor = getSelectedNeighbor();
-    const contextWindowSize = parseInt(document.getElementById('contextWindowSize').value);
+    const targetWord = document.getElementById('targetWord').value.toLowerCase();
+    const selectedNeighbor = getSelectedNeighbor().toLowerCase();
+    const contextWindowSize = parseInt(document.getElementById('contextWindowSize').value, 10);
     const tokens = getTokensForAllData();
 
     const pmi = calculatePMI(targetWord, selectedNeighbor, tokens, contextWindowSize);
@@ -468,7 +480,7 @@ function generateProbabilityGraph() {
 document.getElementById('calculatePMIButton').addEventListener('click', displayPMI);
 document.getElementById('calculateProbabilityGraph').addEventListener('click', generateProbabilityGraph);
 
-function generateGraph() {
+function generateOldGraph() {
     const targetWord = document.getElementById('targetWord').value;
     const contextWindowSize = parseInt(document.getElementById('contextWindowSize').value);
     const topWordsCount = parseInt(document.getElementById('topWordsCount').value);
